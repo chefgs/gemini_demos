@@ -1,0 +1,73 @@
+# Use the official Alpine Linux base image
+FROM alpine:latest
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# --- Install Essential Build Tools and Core Utilities ---
+# build-base includes gcc, g++, make, etc., needed for compiling source code
+# git, curl, wget, ca-certificates for fetching things
+# bash for running some scripts (like rustup)
+RUN apk update && apk upgrade && \
+    apk add --no-cache \
+    build-base \
+    git \
+    curl \
+    wget \
+    ca-certificates \
+    bash \
+    vim \
+    nano \
+    # Clean up apk cache to reduce image size
+    && rm -rf /var/cache/apk/*
+
+# --- Install Go ---
+# Alpine's official repositories have Go
+ARG GO_VERSION=1.22.2 # Specify the desired Go version (match Alpine's available versions if using apk)
+# NOTE: Using apk is simpler and ensures Musl compatibility, but might not have the latest version immediately
+# If you need the absolute latest, you'd download the tarball and install manually as in the Ubuntu example,
+# Go supports building for Musl.
+# Let's use apk for simplicity and guaranteed compatibility:
+RUN apk add --no-cache go
+
+# --- Install Rust ---
+# rustup is the standard way to install Rust
+ENV RUSTUP_INIT_SKIP_PATH_CHECK=yes
+# Need to install the Musl target specifically
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && /root/.cargo/bin/rustup target add x86_64-unknown-linux-musl \
+    && rm -rf /root/.cargo/tmp # Clean up temporary files
+ENV PATH="/root/.cargo/bin:${PATH}" 
+# Caveat: While rustc and cargo work, linking native dependencies will use Musl libs.
+
+# --- Install Python 3 and pip ---
+# Alpine has python3 and py3-pip
+RUN apk add --no-cache python3 py3-pip
+# Optional: Make 'python' command point to python3
+# RUN ln -sf /usr/bin/python3 /usr/bin/python
+# Caveat: Many Python libraries with C extensions (e.g., numpy, pandas, many database drivers, cryptography)
+# are distributed as Glibc wheels. Installing these on Alpine often fails, requiring compilation from source,
+# which needs specific -dev packages from apk and can be complex.
+
+# --- Install Node.js and npm (for JS Frameworks) ---
+# Alpine has nodejs and npm
+# Check apk package list for available versions (e.g., nodejs-lts, nodejs)
+RUN apk add --no-cache nodejs npm
+# Caveat: Many Node.js native modules used by frameworks or tools are distributed
+# as Glibc binaries. Installing these via npm might fail or require compilation
+# from source (using node-gyp), which needs specific -dev packages and build-base.
+
+# --- Install Java (OpenJDK) ---
+# Alpine has OpenJDK
+# Check apk package list for available versions (e.g., openjdk17, openjdk21)
+RUN apk add --no-cache openjdk17-jdk
+# Optional: Set JAVA_HOME if needed by other tools
+# ENV JAVA_HOME="/usr/lib/jvm/java-17-openjdk" # Check the actual path after installation
+
+# --- Final Configuration ---
+# Set the default command to run when the container starts
+# This drops you into an ash shell (Alpine's default)
+CMD ["/bin/ash"]
+
+# You could also set an ENTRYPOINT to a script that runs your builds
+# ENTRYPOINT ["/usr/local/bin/run_all_builds.sh"]

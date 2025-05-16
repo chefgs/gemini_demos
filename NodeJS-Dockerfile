@@ -1,0 +1,153 @@
+# Template Dockerfile
+# Instructions:
+# 1. Choose a base OS: Uncomment either Ubuntu or Alpine section below
+# 2. Set the desired versions for languages you need
+# 3. Delete language sections you don't need
+# 4. Adjust packages or configurations as needed
+
+#-----------------------------------------------------------------------------------
+# CHOOSE BASE OS - UNCOMMENT ONE SECTION ONLY
+#-----------------------------------------------------------------------------------
+
+#--------- OPTION 1: UBUNTU BASE ---------
+# Use Ubuntu LTS base image
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install essential build tools and libraries
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    ca-certificates \
+    gpg \
+    software-properties-common \
+    # Common development libraries
+    zlib1g-dev \
+    libssl-dev \
+    libffi-dev \
+    # Clean up
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+#--------- OPTION 2: ALPINE BASE ---------
+# Use Alpine Linux base image (lightweight alternative)
+# FROM alpine:latest
+
+# Install essential build tools and utilities
+# RUN apk update && apk upgrade && \
+#     apk add --no-cache \
+#     build-base \
+#     git \
+#     curl \
+#     wget \
+#     ca-certificates \
+#     bash \
+#     vim \
+#     nano \
+#     && rm -rf /var/cache/apk/*
+
+#-----------------------------------------------------------------------------------
+# WORKING DIRECTORY SETUP
+#-----------------------------------------------------------------------------------
+WORKDIR /app
+
+#-----------------------------------------------------------------------------------
+# LANGUAGE SECTIONS - DELETE SECTIONS YOU DON'T NEED
+#-----------------------------------------------------------------------------------
+
+#--------- GOLANG SECTION ---------
+# Set to "true" to include Go, or "false" to exclude
+ARG INSTALL_GOLANG=false
+ARG GO_VERSION=1.22.2
+
+# Ubuntu Go installation
+RUN if [ "$INSTALL_GOLANG" = "true" ]; then \
+    wget https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
+    rm go${GO_VERSION}.linux-amd64.tar.gz; \
+    fi
+
+# Alpine Go installation (uncomment if using Alpine)
+# RUN if [ "$INSTALL_GOLANG" = "true" ]; then \
+#     apk add --no-cache go; \
+#     fi
+
+ENV PATH="${PATH}:/usr/local/go/bin"
+
+#--------- RUST SECTION ---------
+# Set to "true" to include Rust, or "false" to exclude
+ARG INSTALL_RUST=false
+
+RUN if [ "$INSTALL_RUST" = "true" ]; then \
+    # Non-interactive install for rustup
+    env RUSTUP_INIT_SKIP_PATH_CHECK=yes \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; \
+    fi
+
+# Include Rust in PATH
+ENV PATH="${PATH}:/root/.cargo/bin"
+
+#--------- PYTHON SECTION ---------
+# Set to "true" to include Python, or "false" to exclude
+ARG INSTALL_PYTHON=false
+
+# Ubuntu Python installation
+RUN if [ "$INSTALL_PYTHON" = "true" ]; then \
+    apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-pip && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Alpine Python installation (uncomment if using Alpine)
+# RUN if [ "$INSTALL_PYTHON" = "true" ]; then \
+#     apk add --no-cache python3 py3-pip; \
+#     fi
+
+#--------- NODE.JS SECTION ---------
+# Set to "true" to include Node.js, or "false" to exclude
+ARG INSTALL_NODEJS=true
+ARG NODE_MAJOR=20
+
+# Ubuntu Node.js installation
+RUN if [ "$INSTALL_NODEJS" = "true" ]; then \
+    apt-get update && \
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list >/dev/null && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Alpine Node.js installation (uncomment if using Alpine)
+RUN if [ "$INSTALL_NODEJS" = "true" ]; then \
+    apk add --no-cache nodejs npm; \
+    fi
+
+#--------- JAVA SECTION ---------
+# Set to "true" to include Java, or "false" to exclude
+ARG INSTALL_JAVA=false
+ARG JAVA_VERSION=17
+
+# Ubuntu Java installation
+RUN if [ "$INSTALL_JAVA" = "true" ]; then \
+    apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-${JAVA_VERSION}-jdk maven gradle && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# Alpine Java installation (uncomment if using Alpine)
+# RUN if [ "$INSTALL_JAVA" = "true" ]; then \
+#     apk add --no-cache openjdk${JAVA_VERSION}-jdk; \
+#     fi
+
+#-----------------------------------------------------------------------------------
+# DEFAULT COMMAND
+#-----------------------------------------------------------------------------------
+CMD ["/bin/bash"]
+# For Alpine, use "/bin/ash" instead of "/bin/bash"

@@ -1,0 +1,93 @@
+# Use an official Ubuntu 22.04 LTS base image - Stable and widely compatible
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# --- Install Essential Build Tools, Core Utilities, and Development Headers ---
+# build-essential: Provides gcc, g++, make - essential for compiling code
+# curl, wget, git: for fetching things and version control
+# vim, nano: basic editors
+# ca-certificates, gpg, software-properties-common: Needed for secure downloads, adding repositories
+#
+# Common development headers needed to compile native extensions for Python, Node.js, etc.
+# (This list covers many common dependencies like compression, SSL, XML, image processing, etc.)
+# Add more *-dev packages here if specific libraries your projects use require them
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    ca-certificates \
+    gpg \
+    software-properties-common \
+    # Common development libraries for compiling native extensions
+    zlib1g-dev \
+    libssl-dev \
+    libffi-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libgif-dev \
+    # Add more specific -dev packages here if needed (e.g., libpq-dev for Postgres client) \
+    # Clean up apt cache
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# --- Install Go ---
+ARG GO_VERSION=1.22.2 # Specify the desired Go version
+RUN wget https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+# Go build does not typically require extensive system libraries beyond build-essential
+
+# --- Install Rust ---
+# Need non-interactive install for rustup
+ENV RUSTUP_INIT_SKIP_PATH_CHECK=yes
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# rustup installs to $HOME/.cargo/bin by default. Add it to PATH
+# Assuming root user for installation
+ENV PATH="/root/.cargo/bin:${PATH}"
+# Rust build does not typically require extensive system libraries beyond build-essential
+
+# --- Install Python 3 and pip ---
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-pip && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Python native extensions compile against Glibc and common -dev packages (installed above)
+# should cover many cases.
+
+# --- Install Node.js and npm (for JS Frameworks) ---
+# Using NodeSource recommended way for a recent LTS version (e.g., Node.js 20)
+ARG NODE_MAJOR=20
+# Use the official NodeSource setup script which handles key and repo setup correctly
+RUN apt-get update && \
+    curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Node.js native add-ons compile using node-gyp against Glibc and common -dev packages (installed above).
+
+# --- Install Java (OpenJDK) and Build Tools ---
+# Using OpenJDK 17 LTS as an example
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-17-jdk maven gradle && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+# openjdk-17-jdk provides javac. maven and gradle are common build automation tools.
+
+# --- Final Configuration ---
+# Set the default command to run when the container starts
+CMD ["/bin/bash"]

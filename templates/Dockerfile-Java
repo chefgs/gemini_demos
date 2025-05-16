@@ -1,0 +1,30 @@
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install essential build tools and libraries
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    ca-certificates \
+    gpg \
+    software-properties-common \
+    # Clean up
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Java (OpenJDK)
+ARG JAVA_VERSION=17
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-${JAVA_VERSION}-jdk maven gradle && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set a default command - typically a shell for interactive use
+CMD ["/bin/bash"]

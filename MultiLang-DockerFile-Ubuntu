@@ -1,0 +1,72 @@
+# Use an official Ubuntu base image
+FROM ubuntu:latest
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# --- Install Essential Build Tools and Core Utilities ---
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+    build-essential \ 
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
+    ca-certificates \
+    gpg \             
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# --- Install Go ---
+ARG GO_VERSION=1.22.2 # Specify the desired Go version
+RUN wget https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+# Optional: Set GOPATH if you follow the traditional workspace layout
+# ENV GOPATH="/go"
+# RUN mkdir -p /go/src /go/bin /go/pkg
+
+# --- Install Rust ---
+# Need non-interactive install for rustup
+ENV RUSTUP_INIT_SKIP_PATH_CHECK=yes
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# rustup installs to $HOME/.cargo/bin by default. Add it to PATH
+ENV PATH="/root/.cargo/bin:${PATH}" 
+
+# --- Install Python 3 and pip ---
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-pip && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Optional: Make 'python' command point to python3
+# RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
+
+# --- Install Node.js and npm (for JS Frameworks) ---
+# Using NodeSource recommended way for a recent LTS version (e.g., Node.js 20)
+ARG NODE_MAJOR=20
+RUN apt-get update && \
+    curl -fsSL https://deb.nodesource.com/dists/bookworm/Release.gpg | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x bookworm main" | tee /etc/apt/sources.list.d/nodesource.list >/dev/null && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# --- Install Java (OpenJDK) ---
+# Using OpenJDK 17 LTS as an example
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openjdk-17-jdk && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Optional: Set JAVA_HOME if needed by other tools (often not strictly necessary)
+# Find actual path first: update-java-alternatives --list
+# ENV JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")
+
+# --- Final Configuration ---
+# Set the default command to run when the container starts
+# This drops you into a bash shell where you can use all installed tools
+CMD ["/bin/bash"]
+
+# You could also set an ENTRYPOINT to a script that runs all your build/test commands
+# ENTRYPOINT ["/usr/local/bin/run_all_builds.sh"]
