@@ -2,7 +2,7 @@
 #
 # Dockerfile Generator Script
 #
-# This script generates a customized Dockerfile from a template.
+# This script generates a customized Dockerfile directly.
 # It allows you to choose the base OS and which programming languages to include.
 #
 
@@ -37,7 +37,6 @@ GO_VERSION="1.22.2"
 NODE_VERSION="20"
 JAVA_VERSION="17"
 OUTPUT_FILE="Dockerfile"
-TEMPLATE_FILE="templates/Dockerfile-Template"
 INCLUDE_GOLANG=false
 INCLUDE_RUST=false
 INCLUDE_PYTHON=false
@@ -59,7 +58,6 @@ function print_usage() {
     echo "  --java                   Include Java"
     echo "  --java-version <version> Java version to install (default: 17)"
     echo "  --output <file>          Output file path (default: Dockerfile)"
-    echo "  --template <file>        Path to the Dockerfile template (default: templates/Dockerfile-Template)"
     echo "  --all                    Include all programming languages"
     echo "  --help                   Display this help message"
     exit 1
@@ -112,10 +110,6 @@ while [[ $# -gt 0 ]]; do
             OUTPUT_FILE="$2"
             shift 2
             ;;
-        --template)
-            TEMPLATE_FILE="$2"
-            shift 2
-            ;;
         --all)
             INCLUDE_ALL=true
             shift
@@ -142,12 +136,6 @@ if [[ "$INCLUDE_GOLANG" == false && \
     exit 0
 fi
 
-# Check if template exists
-if [[ ! -f "$TEMPLATE_FILE" ]]; then
-    echo "Error: Template file not found at $TEMPLATE_FILE"
-    exit 1
-fi
-
 # If --all is specified, include all languages
 if [[ "$INCLUDE_ALL" == true ]]; then
     INCLUDE_GOLANG=true
@@ -157,72 +145,150 @@ if [[ "$INCLUDE_ALL" == true ]]; then
     INCLUDE_JAVA=true
 fi
 
-# Create temporary file for processing
-TEMP_FILE=$(mktemp)
+# Create the Dockerfile content
+generate_dockerfile() {
+    # Start with the base image
+    if [[ "$BASE_OS" == "ubuntu" ]]; then
+        echo "FROM ubuntu:22.04"
+        echo ""
+        echo "# Avoid prompts from apt"
+        echo "ENV DEBIAN_FRONTEND=noninteractive"
+        echo ""
+        echo "# Update package lists and install common tools"
+        echo "RUN apt-get update && apt-get install -y \\"
+        echo "    curl \\"
+        echo "    wget \\"
+        echo "    git \\"
+        echo "    build-essential \\"
+        echo "    ca-certificates \\"
+        echo "    && apt-get clean \\"
+        echo "    && rm -rf /var/lib/apt/lists/*"
+    else # alpine
+        echo "FROM alpine:latest"
+        echo ""
+        echo "# Update package lists and install common tools"
+        echo "RUN apk update && apk add --no-cache \\"
+        echo "    curl \\"
+        echo "    wget \\"
+        echo "    git \\"
+        echo "    build-base \\"
+        echo "    ca-certificates"
+    fi
+    
+    echo ""
+    echo "# Create a working directory"
+    echo "WORKDIR /app"
+    echo ""
+    
+    # Add language-specific sections based on user selection
+    
+    # Go installation
+    if [[ "$INCLUDE_GOLANG" == true ]]; then
+        echo "# Install Golang"
+        if [[ "$BASE_OS" == "ubuntu" ]]; then
+            echo "RUN curl -LO https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \\"
+            echo "    && tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz \\"
+            echo "    && rm go${GO_VERSION}.linux-amd64.tar.gz"
+        else # alpine
+            echo "RUN wget -O go.tgz https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \\"
+            echo "    && tar -C /usr/local -xzf go.tgz \\"
+            echo "    && rm go.tgz"
+        fi
+        echo "ENV PATH=\$PATH:/usr/local/go/bin"
+        echo "ENV GOPATH=/go"
+        echo "ENV PATH=\$PATH:\$GOPATH/bin"
+        echo ""
+    fi
+    
+    # Rust installation
+    if [[ "$INCLUDE_RUST" == true ]]; then
+        echo "# Install Rust"
+        if [[ "$BASE_OS" == "ubuntu" ]]; then
+            echo "RUN apt-get update && apt-get install -y \\"
+            echo "    rustc \\"
+            echo "    cargo \\"
+            echo "    && apt-get clean \\"
+            echo "    && rm -rf /var/lib/apt/lists/*"
+        else # alpine
+            echo "RUN apk add --no-cache \\"
+            echo "    rust \\"
+            echo "    cargo"
+        fi
+        echo ""
+    fi
+    
+    # Python installation
+    if [[ "$INCLUDE_PYTHON" == true ]]; then
+        echo "# Install Python"
+        if [[ "$BASE_OS" == "ubuntu" ]]; then
+            echo "RUN apt-get update && apt-get install -y \\"
+            echo "    python3 \\"
+            echo "    python3-pip \\"
+            echo "    python3-venv \\"
+            echo "    && apt-get clean \\"
+            echo "    && rm -rf /var/lib/apt/lists/* \\"
+            echo "    && ln -s /usr/bin/python3 /usr/bin/python"
+        else # alpine
+            echo "RUN apk add --no-cache \\"
+            echo "    python3 \\"
+            echo "    py3-pip \\"
+            echo "    && ln -sf /usr/bin/python3 /usr/bin/python"
+        fi
+        echo "ENV PATH=\$PATH:/usr/local/bin"
+        echo ""
+    fi
+    
+    # Node.js installation
+    if [[ "$INCLUDE_NODEJS" == true ]]; then
+        echo "# Install Node.js"
+        if [[ "$BASE_OS" == "ubuntu" ]]; then
+            echo "RUN apt-get update && apt-get install -y ca-certificates curl gnupg \\"
+            echo "    && mkdir -p /etc/apt/keyrings \\"
+            echo "    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \\"
+            echo "    && echo \"deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_VERSION}.x nodistro main\" | tee /etc/apt/sources.list.d/nodesource.list \\"
+            echo "    && apt-get update && apt-get install -y nodejs \\"
+            echo "    && apt-get clean \\"
+            echo "    && rm -rf /var/lib/apt/lists/*"
+        else # alpine
+            echo "RUN apk add --no-cache \\"
+            echo "    nodejs \\"
+            echo "    npm"
+        fi
+        echo ""
+    fi
+    
+    # Java installation
+    if [[ "$INCLUDE_JAVA" == true ]]; then
+        echo "# Install Java"
+        if [[ "$BASE_OS" == "ubuntu" ]]; then
+            echo "RUN apt-get update && apt-get install -y \\"
+            echo "    openjdk-${JAVA_VERSION}-jdk \\"
+            echo "    && apt-get clean \\"
+            echo "    && rm -rf /var/lib/apt/lists/*"
+        else # alpine
+            echo "RUN apk add --no-cache \\"
+            echo "    openjdk${JAVA_VERSION}"
+        fi
+        echo "ENV JAVA_HOME=/usr/lib/jvm/java-${JAVA_VERSION}-openjdk"
+        echo "ENV PATH=\$PATH:\$JAVA_HOME/bin"
+        echo ""
+    fi
+    
+    # Set the default command
+    if [[ "$BASE_OS" == "ubuntu" ]]; then
+        echo "# Set default command"
+        echo "CMD [\"/bin/bash\"]"
+    else # alpine
+        echo "# Set default command"
+        echo "CMD [\"/bin/ash\"]"
+    fi
+}
 
-# Copy template to temp file
-cp "$TEMPLATE_FILE" "$TEMP_FILE"
-
-# Process base OS selection
-if [[ "$BASE_OS" == "ubuntu" ]]; then
-    # Uncomment Ubuntu, keep Alpine commented
-    sed -i.bak 's/#FROM ubuntu:22.04/FROM ubuntu:22.04/' "$TEMP_FILE"
-    sed -i.bak 's/# RUN apt-get update/RUN apt-get update/' "$TEMP_FILE"
-else # alpine
-    # Uncomment Alpine, keep Ubuntu commented
-    sed -i.bak 's/FROM ubuntu:22.04/# FROM ubuntu:22.04/' "$TEMP_FILE"
-    sed -i.bak 's/# FROM alpine:latest/FROM alpine:latest/' "$TEMP_FILE"
-    # Uncomment Alpine specific commands and comment Ubuntu ones
-    sed -i.bak 's/# RUN apk update/RUN apk update/' "$TEMP_FILE"
-    # Set the default shell to ash for Alpine
-    sed -i.bak 's/CMD \["\/bin\/bash"\]/# CMD \["\/bin\/bash"\]/' "$TEMP_FILE"
-    sed -i.bak 's/# For Alpine, use "\/bin\/ash" instead of "\/bin\/bash"/CMD \["\/bin\/ash"\]/' "$TEMP_FILE"
-fi
-
-# Configure Go
-if [[ "$INCLUDE_GOLANG" == true ]]; then
-    sed -i.bak "s/ARG INSTALL_GOLANG=true/ARG INSTALL_GOLANG=true/" "$TEMP_FILE"
-    sed -i.bak "s/ARG GO_VERSION=1.22.2/ARG GO_VERSION=$GO_VERSION/" "$TEMP_FILE"
-else
-    sed -i.bak "s/ARG INSTALL_GOLANG=true/ARG INSTALL_GOLANG=false/" "$TEMP_FILE"
-fi
-
-# Configure Rust
-if [[ "$INCLUDE_RUST" == true ]]; then
-    sed -i.bak "s/ARG INSTALL_RUST=true/ARG INSTALL_RUST=true/" "$TEMP_FILE"
-else
-    sed -i.bak "s/ARG INSTALL_RUST=true/ARG INSTALL_RUST=false/" "$TEMP_FILE"
-fi
-
-# Configure Python
-if [[ "$INCLUDE_PYTHON" == true ]]; then
-    sed -i.bak "s/ARG INSTALL_PYTHON=true/ARG INSTALL_PYTHON=true/" "$TEMP_FILE"
-else
-    sed -i.bak "s/ARG INSTALL_PYTHON=true/ARG INSTALL_PYTHON=false/" "$TEMP_FILE"
-fi
-
-# Configure Node.js
-if [[ "$INCLUDE_NODEJS" == true ]]; then
-    sed -i.bak "s/ARG INSTALL_NODEJS=true/ARG INSTALL_NODEJS=true/" "$TEMP_FILE"
-    sed -i.bak "s/ARG NODE_MAJOR=20/ARG NODE_MAJOR=$NODE_VERSION/" "$TEMP_FILE"
-else
-    sed -i.bak "s/ARG INSTALL_NODEJS=true/ARG INSTALL_NODEJS=false/" "$TEMP_FILE"
-fi
-
-# Configure Java
-if [[ "$INCLUDE_JAVA" == true ]]; then
-    sed -i.bak "s/ARG INSTALL_JAVA=true/ARG INSTALL_JAVA=true/" "$TEMP_FILE"
-    sed -i.bak "s/ARG JAVA_VERSION=17/ARG JAVA_VERSION=$JAVA_VERSION/" "$TEMP_FILE"
-else
-    sed -i.bak "s/ARG INSTALL_JAVA=true/ARG INSTALL_JAVA=false/" "$TEMP_FILE"
-fi
-
-# Move processed file to output destination
-mv "$TEMP_FILE" "$OUTPUT_FILE"
-rm -f "$TEMP_FILE.bak"  # Remove backup file created by sed
+# Generate the Dockerfile and write to the output file
+generate_dockerfile > "$OUTPUT_FILE"
 
 echo "Dockerfile successfully generated at: $OUTPUT_FILE"
-echo "Base OS: ${BASE_OS^}"  # Capitalize first letter
+echo "Base OS: ${BASE_OS}"
 
 # Print what languages were included
 LANGUAGES=()
